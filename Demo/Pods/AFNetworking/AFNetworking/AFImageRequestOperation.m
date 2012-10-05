@@ -33,7 +33,7 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 
 @interface AFImageRequestOperation ()
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
-@property (readwrite, nonatomic, retain) UIImage *responseImage;
+@property (readwrite, nonatomic) UIImage *responseImage;
 #elif __MAC_OS_X_VERSION_MIN_REQUIRED 
 @property (readwrite, nonatomic, retain) NSImage *responseImage;
 #endif
@@ -49,7 +49,7 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 + (AFImageRequestOperation *)imageRequestOperationWithRequest:(NSURLRequest *)urlRequest                
                                                       success:(void (^)(UIImage *image))success
 {
-    return [self imageRequestOperationWithRequest:urlRequest imageProcessingBlock:nil cacheName:nil success:^(NSURLRequest __unused *request, NSHTTPURLResponse __unused *response, UIImage *image) {
+    return [self imageRequestOperationWithRequest:urlRequest imageProcessingBlock:nil success:^(NSURLRequest __unused *request, NSHTTPURLResponse __unused *response, UIImage *image) {
         if (success) {
             success(image);
         }
@@ -59,7 +59,7 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 + (AFImageRequestOperation *)imageRequestOperationWithRequest:(NSURLRequest *)urlRequest                
                                                       success:(void (^)(NSImage *image))success
 {
-    return [self imageRequestOperationWithRequest:urlRequest imageProcessingBlock:nil cacheName:nil success:^(NSURLRequest __unused *request, NSHTTPURLResponse __unused *response, NSImage *image) {
+    return [self imageRequestOperationWithRequest:urlRequest imageProcessingBlock:nil success:^(NSURLRequest __unused *request, NSHTTPURLResponse __unused *response, NSImage *image) {
         if (success) {
             success(image);
         }
@@ -71,11 +71,10 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 + (AFImageRequestOperation *)imageRequestOperationWithRequest:(NSURLRequest *)urlRequest
                                          imageProcessingBlock:(UIImage *(^)(UIImage *))imageProcessingBlock
-                                                    cacheName:(NSString *)cacheNameOrNil
                                                       success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, UIImage *image))success
                                                       failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
 {
-    AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
+    AFImageRequestOperation *requestOperation = [[AFImageRequestOperation alloc] initWithRequest:urlRequest];
     [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         if (success) {
             UIImage *image = responseObject;
@@ -83,7 +82,7 @@ static dispatch_queue_t image_request_operation_processing_queue() {
                 dispatch_async(image_request_operation_processing_queue(), ^(void) {
                     UIImage *processedImage = imageProcessingBlock(image);
 
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
+                    dispatch_async(requestOperation.successCallbackQueue ?: dispatch_get_main_queue(), ^(void) {
                         success(operation.request, operation.response, processedImage);
                     });
                 });
@@ -103,11 +102,10 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 #elif __MAC_OS_X_VERSION_MIN_REQUIRED 
 + (AFImageRequestOperation *)imageRequestOperationWithRequest:(NSURLRequest *)urlRequest
                                          imageProcessingBlock:(NSImage *(^)(NSImage *))imageProcessingBlock
-                                                    cacheName:(NSString *)cacheNameOrNil
                                                       success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSImage *image))success
                                                       failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
 {
-    AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
+    AFImageRequestOperation *requestOperation = [[AFImageRequestOperation alloc] initWithRequest:urlRequest];
     [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         if (success) {
             NSImage *image = responseObject;
@@ -115,7 +113,7 @@ static dispatch_queue_t image_request_operation_processing_queue() {
                 dispatch_async(image_request_operation_processing_queue(), ^(void) {
                     NSImage *processedImage = imageProcessingBlock(image);
 
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
+                    dispatch_async(requestOperation.successCallbackQueue ?: dispatch_get_main_queue(), ^(void) {
                         success(operation.request, operation.response, processedImage);
                     });
                 });
@@ -146,10 +144,6 @@ static dispatch_queue_t image_request_operation_processing_queue() {
     return self;
 }
 
-- (void)dealloc {
-    [_responseImage release];
-    [super dealloc];
-}
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 - (UIImage *)responseImage {
@@ -163,9 +157,12 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 }
 
 - (void)setImageScale:(CGFloat)imageScale {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfloat-equal"
     if (imageScale == _imageScale) {
         return;
     }
+#pragma clang diagnostic pop
     
     _imageScale = imageScale;
     
@@ -176,16 +173,15 @@ static dispatch_queue_t image_request_operation_processing_queue() {
     if (!_responseImage && [self.responseData length] > 0 && [self isFinished]) {
         // Ensure that the image is set to it's correct pixel width and height
         NSBitmapImageRep *bitimage = [[NSBitmapImageRep alloc] initWithData:self.responseData];
-        self.responseImage = [[[NSImage alloc] initWithSize:NSMakeSize([bitimage pixelsWide], [bitimage pixelsHigh])] autorelease];
+        self.responseImage = [[NSImage alloc] initWithSize:NSMakeSize([bitimage pixelsWide], [bitimage pixelsHigh])];
         [self.responseImage addRepresentation:bitimage];
-        [bitimage release];
     }
     
     return _responseImage;
 }
 #endif
 
-#pragma mark - AFHTTPClientOperation
+#pragma mark - AFHTTPRequestOperation
 
 + (NSSet *)acceptableContentTypes {
     return [NSSet setWithObjects:@"image/tiff", @"image/jpeg", @"image/gif", @"image/png", @"image/ico", @"image/x-icon", @"image/bmp", @"image/x-bmp", @"image/x-xbitmap", @"image/x-win-bitmap", nil];
@@ -204,6 +200,8 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 - (void)setCompletionBlockWithSuccess:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
                               failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-retain-cycles"
     self.completionBlock = ^ {
         if ([self isCancelled]) {
             return;
@@ -212,7 +210,7 @@ static dispatch_queue_t image_request_operation_processing_queue() {
         dispatch_async(image_request_operation_processing_queue(), ^(void) {
             if (self.error) {
                 if (failure) {
-                    dispatch_async(self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^{
+                    dispatch_async(self.failureCallbackQueue ?: dispatch_get_main_queue(), ^{
                         failure(self, self.error);
                     });
                 }
@@ -226,13 +224,14 @@ static dispatch_queue_t image_request_operation_processing_queue() {
 
                     image = self.responseImage;
 
-                    dispatch_async(self.successCallbackQueue ? self.successCallbackQueue : dispatch_get_main_queue(), ^{
+                    dispatch_async(self.successCallbackQueue ?: dispatch_get_main_queue(), ^{
                         success(self, image);
                     });
                 }
             }
         });        
-    };  
+    };
+#pragma clang diagnostic pop
 }
 
 @end

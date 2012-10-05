@@ -1,11 +1,11 @@
 
 PODS:
-- AFNetworking (1.0RC1)
+- AFNetworking (1.0)
 
 DEPENDENCIES:
 - AFNetworking
 
 SPEC CHECKSUMS:
-  AFNetworking: b21c1252d437fd322e7db1caa93b163d76a362cb
+  AFNetworking: e9e0911a6afd846691672a4d832fb531e8bae72f
 
-COCOAPODS: 0.14.0
+COCOAPODS: 0.15.1
