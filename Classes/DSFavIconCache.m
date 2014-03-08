@@ -15,6 +15,9 @@ NSData *UINSImagePNGRepresentation(UINSImage *image) {
     return UIImagePNGRepresentation(image);
 
 #else
+    if (![image TIFFRepresentation]) {
+        return nil;
+    }
     CGImageSourceRef sourceRef = CGImageSourceCreateWithData((__bridge CFDataRef)[image TIFFRepresentation], NULL);
     CGImageRef imageRef =  CGImageSourceCreateImageAtIndex(sourceRef, 0, NULL);
     CGImageRef copyImageRef = CGImageCreateCopyWithColorSpace (imageRef, CGColorSpaceCreateDeviceRGB());
