@@ -88,6 +88,34 @@ CGSize sizeInPixels(UINSImage *icon) {
         return cachedImage;
     }
 
+    // We don't have a cached favicon saved for the url, check to see the last time that we tried to fetch the favicon – if it was less than 2 days ago, don't try to fetch it again and instead return the placeholder
+    NSString *plistPath = [self.cache.cacheDirectory stringByAppendingPathComponent:@"it.discontinuity.favicons.fetchDate.plist"];
+
+    if (![[NSFileManager defaultManager] fileExistsAtPath:plistPath]) {
+        [[[NSDictionary alloc] init] writeToFile:plistPath atomically:YES];
+    }
+    NSMutableDictionary *fetchDateDictionary = [NSMutableDictionary dictionaryWithContentsOfFile:plistPath];
+    if ([fetchDateDictionary objectForKey:[self keyForURL:url]]) {
+        NSDate *fromDate = [fetchDateDictionary objectForKey:[self keyForURL:url]];
+        NSDate *toDate = [NSDate date];
+
+        NSCalendar *calendar = [NSCalendar currentCalendar];
+        [calendar rangeOfUnit:NSDayCalendarUnit startDate:&fromDate
+                     interval:NULL forDate:fromDate];
+        [calendar rangeOfUnit:NSDayCalendarUnit startDate:&toDate
+                     interval:NULL forDate:toDate];
+
+        NSDateComponents *difference = [calendar components:NSDayCalendarUnit
+                                                   fromDate:fromDate toDate:toDate options:0];
+
+        if ([difference day] < 2) {
+            return _placeholder;
+        }
+    }
+    // The last fetch date is greater than two days, try to fetch the favicon
+    [fetchDateDictionary setObject:[NSDate date] forKey:[self keyForURL:url]];
+    [fetchDateDictionary writeToFile:plistPath atomically:YES];
+
     if (_discardRequestsForIconsWithPendingOperation && [_operationsPerURL objectForKey:url]) {
         return _placeholder;
     }
