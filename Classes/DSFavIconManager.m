@@ -184,4 +184,3 @@ CGSize sizeInPixels(UINSImage *icon) {
 }
 
 @end
-
