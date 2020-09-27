@@ -8,9 +8,6 @@
 
 #import "DSFavIconManager.h"
 
-CGFloat screenScale();
-CGSize sizeInPixels(UINSImage *image);
-
 CGFloat screenScale() {
     #if TARGET_OS_IPHONE
         return [UIScreen mainScreen].scale;
@@ -100,12 +97,12 @@ CGSize sizeInPixels(UINSImage *icon) {
         NSDate *toDate = [NSDate date];
 
         NSCalendar *calendar = [NSCalendar currentCalendar];
-        [calendar rangeOfUnit:NSDayCalendarUnit startDate:&fromDate
+        [calendar rangeOfUnit:NSCalendarUnitDay startDate:&fromDate
                      interval:NULL forDate:fromDate];
-        [calendar rangeOfUnit:NSDayCalendarUnit startDate:&toDate
+        [calendar rangeOfUnit:NSCalendarUnitDay startDate:&toDate
                      interval:NULL forDate:toDate];
 
-        NSDateComponents *difference = [calendar components:NSDayCalendarUnit
+        NSDateComponents *difference = [calendar components:NSCalendarUnitDay
                                                    fromDate:fromDate toDate:toDate options:0];
 
         if ([difference day] < 2) {
@@ -120,9 +117,9 @@ CGSize sizeInPixels(UINSImage *icon) {
         return _placeholder;
     }
         DSFavIconOperationCompletionBlock completionBlock = ^(UINSImage *icon) {
-            [_operationsPerURL removeObjectForKey:url];
+            [self->_operationsPerURL removeObjectForKey:url];
             if (icon) {
-                [_cache setImage:icon forKey:[self keyForURL:url]];
+                [self->_cache setImage:icon forKey:[self keyForURL:url]];
                 dispatch_async(dispatch_get_main_queue(), ^{
                     downloadHandler(icon);
                 });
